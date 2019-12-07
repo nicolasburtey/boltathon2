@@ -4,10 +4,9 @@ const lnService = require('ln-service');
 
 // parent create a random hash
 
-// rand = sha256(Math.random().toString(2))
-// r = bignum(rand, 16)
-
-init_hash = bignum('2bdb55e8376b8857bba7f8b9aa1bab0a0c4f1212944fa584308d37f563521141', 16)
+rand = sha256(Math.random().toString(2))
+init_preimage = bignum(rand, 16)
+// init_preimage = bignum('2bdb55e8376b8857bba7f8b9aa1bab0a0c4f1212944fa584308d37f563521141', 16)
 
 // Question template: 0, 1, 2 or 3, only 2 bits/answer.
 good_answers = [3, 0, 1, 3]
@@ -16,18 +15,19 @@ init_to_answer = (response, hash) => {
     calculated_hash = hash
 
     for (var i = 0; i < response.length; i++) {
-        // console.log(myStringArray[i]);
         calculated_hash = calculated_hash.xor(bignum(response[i]).shiftLeft(i * 2))        
-        console.log(calculated_hash)
+        // console.log(calculated_hash)
     }
 
     return calculated_hash
 }
 
-preimage = init_to_answer(good_answers, init_hash)
+final_preimage = init_to_answer(good_answers, init_preimage)
+hash = sha256(final_preimage.toBuffer())
 
-console.log(init_hash.toString(16));
-console.log(preimage.toString(16));
+console.log(init_preimage.toString(16));
+console.log(final_preimage.toString(16));
+console.log(hash);
 
 const lnd_alice = lnService.authenticatedLndGrpc({
     cert: 'LS0tLS1CRUdJTiBDRVJUSUZJQ0FURS0tLS0tCk1JSUIyRENDQVg2Z0F3SUJBZ0lSQU12NkNVd011aEdrd1pZaFR1SzBpMzB3Q2dZSUtvWkl6ajBFQXdJd01URWYKTUIwR0ExVUVDaE1XYkc1a0lHRjFkRzluWlc1bGNtRjBaV1FnWTJWeWRERU9NQXdHQTFVRUF4TUZZV3hwWTJVdwpIaGNOTVRreE1qQTJNVGN4TlRNMldoY05NakV3TVRNd01UY3hOVE0yV2pBeE1SOHdIUVlEVlFRS0V4WnNibVFnCllYVjBiMmRsYm1WeVlYUmxaQ0JqWlhKME1RNHdEQVlEVlFRREV3VmhiR2xqWlRCWk1CTUdCeXFHU000OUFnRUcKQ0NxR1NNNDlBd0VIQTBJQUJQRjJxTEozQWdMQTlXWk9OM0FVZ0hmM0F1YnVZWHpVMGxFQlFGRFJUbU81VkV3WgpIdmhCVkFlenEvbGpEL2o3OVViU08xZWhVTzM1amtNZjZHcHZmVG1qZHpCMU1BNEdBMVVkRHdFQi93UUVBd0lDCnBEQVBCZ05WSFJNQkFmOEVCVEFEQVFIL01GSUdBMVVkRVFSTE1FbUNCV0ZzYVdObGdnbHNiMk5oYkdodmMzU0MKQldGc2FXTmxnZ1IxYm1sNGdncDFibWw0Y0dGamEyVjBod1IvQUFBQmh4QUFBQUFBQUFBQUFBQUFBQUFBQUFBQgpod1NzRWdBRk1Bb0dDQ3FHU000OUJBTUNBMGdBTUVVQ0lRRG45bjZYUXErWmRjdkhVVFFOWEF0elhqTXg0R2tTClJnN0NIdExIemd6eG5BSWdJbTY5TDR6ZGk4UW5icFY1UmppVlB5THJ4ckMzd0Rvb0J5cERnNVRobks0PQotLS0tLUVORCBDRVJUSUZJQ0FURS0tLS0tCg==',
@@ -66,13 +66,37 @@ const lnd_bob = lnService.authenticatedLndGrpc({
 
         report_balance()
 
-        const invoice = await lnService.createInvoice({lnd: lnd_bob.lnd, tokens: 1000});
+        // alice the parent sent hash to bob the child
+        // bob the child create a payment request using alice hash
+
+        const invoice = await lnService.createHodlInvoice({lnd: lnd_bob.lnd, tokens: 1000, id: hash});
         console.log(invoice)
 
-        await lnService.pay({lnd: lnd_alice.lnd, request: invoice.request})
+        // alice pay the invoice
+        lnService.pay({lnd: lnd_alice.lnd, request: invoice.request}, (err, result) => {
+            console.log(err, result)
+        });
 
         await new Promise(resolve => setTimeout(resolve, 1000));
 
+        // bob receive the payment, but need the pre-image to accept the payment
+        // bob only has `init_preimage` and need to to compute final_preimage
+
+        const unlock_try = (answer) => {
+            preimage = init_to_answer(answer, init_preimage)
+            lnService.settleHodlInvoice({lnd: lnd_bob.lnd, secret: preimage.toString(16)}, (err, result) => {
+                console.log(err, result)
+            })
+        }
+
+        console.log("unsuccesful unlock")
+        unlock_try([1, 2, 3, 0])
+        await new Promise(resolve => setTimeout(resolve, 1000));
+       
+        console.log("succesful unlock")
+        unlock_try(good_answers)
+        await new Promise(resolve => setTimeout(resolve, 1000));
+        
         report_balance()
 
 
@@ -80,5 +104,3 @@ const lnd_bob = lnService.authenticatedLndGrpc({
         console.log(e);
     }
 })();
-
-// const invoice = await createInvoice({lnd});
