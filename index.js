@@ -91,23 +91,13 @@ const createPreimage = () => {
         // bob receive the payment, but need the pre-image to accept the payment
         // bob only has `init_preimage` and need to to compute final_preimage
 
-        const unlock_try = (answer) => {
-            const preimage = init_to_answer(answer, init_preimage)
-            lnService.settleHodlInvoice({lnd: lnd_bob.lnd, secret: preimage.toString(16)}, (err, result) => {
-                console.log(err, result)
-            })
+        async function unlock_try(answer) {
+
         }
 
         console.log("unsuccesful unlock")
-        unlock_try([1, 2, 3, 0])
-        await new Promise(resolve => setTimeout(resolve, 1000));
-       
-        console.log("succesful unlock")
-        unlock_try(good_answers)
-        await new Promise(resolve => setTimeout(resolve, 1000));
-        
-        report_balance()
-
+        const preimage = init_to_answer([1, 2, 3, 0], init_preimage)
+        await lnService.settleHodlInvoice({lnd: lnd_bob.lnd, secret: preimage.toString(16)})
 
     } catch (e) {
         console.log(e);
