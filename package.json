@@ -4,7 +4,8 @@
   "main": "index.js",
   "license": "MIT",
   "dependencies": {
-    "bignum": "^0.13.0",
+    "big-integer": "^1.6.48",
+    "bigint-hash": "^0.2.2",
     "js-sha256": "^0.9.0",
     "ln-service": "^47.5.4"
   }
